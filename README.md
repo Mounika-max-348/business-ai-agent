@@ -461,14 +461,14 @@ Here are great starting points for first-time contributors:
 | # | Task | Difficulty | Files to Edit |
 |---|------|-----------|---------------|
 | 1 | Add `.env.example` with all required variables | ⭐ Easy | Create new file |
-| 2 | Fix Flask port in README (8000 → 5000) | ⭐ Easy | `README.md` |
+| 2 | Add a backend health-check endpoint test | ⭐ Easy | `agent_code/tests/` |
 | 3 | Fix `about.tsx` Typebot branding → ProfitPilot | ⭐ Easy | `landing-page/src/routes/_layout/about.tsx` |
 | 4 | Add missing `import requests` in Loki utils | ⭐⭐ Medium | `agent_code/intents/logs_request_graph/utils.py` |
 | 5 | Add missing `import time` in Metrics utils | ⭐⭐ Medium | `agent_code/intents/metrics_request_graph/utils.py` |
 | 6 | Fix `AVAILABLE_TABLES` table name `business` → `businesses` | ⭐⭐ Medium | `agent_code/intents/database_request_graph/subgraph.py` |
 | 7 | Fix Next.js chatbot to handle SSE streaming | ⭐⭐⭐ Hard | `dashboard/src/app/chatbot/page.tsx` |
 | 8 | Add `web/` Flask service to `docker-compose.yml` | ⭐⭐ Medium | `docker-compose.yml` |
-| 9 | Fix `VITE_API_URL` in docker-compose (8000 → 5000) | ⭐ Easy | `docker-compose.yml` |
+| 9 | Document landing-page API URL overrides for non-Docker deployments | ⭐ Easy | `README.md` |
 | 10 | Add unit tests for intent detection | ⭐⭐⭐ Hard | Create `agent_code/tests/` |
 
 ---
@@ -541,9 +541,9 @@ These are confirmed bugs. Each is a great contribution opportunity!
 | 4 | `metrics_request_graph/utils.py` missing `import time` | 🔴 High | `agent_code/intents/metrics_request_graph/utils.py` |
 | 5 | `AVAILABLE_TABLES` uses `business` instead of `businesses` | 🔴 High | `agent_code/intents/database_request_graph/subgraph.py` |
 | 6 | `web/` Flask not in `docker-compose.yml` | 🟡 Medium | `docker-compose.yml` |
-| 7 | `VITE_API_URL=8000` in compose; agent listens on `5000` | 🟡 Medium | `docker-compose.yml` |
+| 7 | Landing page API URL needs deployment-specific override docs | 🟡 Medium | `README.md` |
 | 8 | `about.tsx` still shows Typebot branding | 🟢 Low | `landing-page/src/routes/_layout/about.tsx` |
-| 9 | README says Flask port 8000 (actual: 5000) | 🟢 Low | `README.md` |
+| 9 | Add an `.env.example` file for local setup | 🟢 Low | Root directory |
 | 10 | No `.env.example` file in repo | 🟡 Medium | Root directory |
 
 ---

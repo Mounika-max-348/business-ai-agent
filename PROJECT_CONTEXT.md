@@ -69,7 +69,7 @@ Browser
 | `CHAT_DB_PATH` | `web/app.py` | `chat_history.db` | No | SQLite path for legacy chat UI. |
 | `SECRET_KEY` | `web/app.py` | `super-secret-key-change-me` | Prod: yes | Flask session secret. |
 | `API_KEY` | `nodes/authenticate_request.py` | `secret-token` | If auth used | Simple API key (not wired to main routes in `app.py`). |
-| `VITE_API_URL` | `docker-compose.yml` (landing) | `http://localhost:8000` | Misaligned | README/compose use 8000; backend listens on **5000** — likely drift. |
+| `VITE_API_URL` | `docker-compose.yml` (landing) | `http://backend:5000` | Docker default | Base URL used by the landing page to reach the Flask backend inside the compose network. |
 | `VITE_GOOGLE_CLIENT_ID` | `landing-page` compose, `__root.tsx` | — | For Google login | OAuth client ID. |
 | `DATABASE_URL`, `ENCRYPTION_SECRET`, `NEXTAUTH_URL`, `NEXT_PUBLIC_VIEWER_URL` | `docker-compose.yml` landing | Various | Unclear / legacy | May be unused by current landing build (TanStack Start). |
 | `NODE_ENV` | `router-dev-tool.ts` | — | Build | Production vs dev. |
@@ -102,7 +102,7 @@ Browser
 
 **Key functions:** `_stream_graph`, `_dashboard_period_multiplier`, `_parse_revenue`, `query_agent`, `onboarding`, dashboard handlers.  
 **Env vars read:** `DATABASE_URL` (via `get_db_connection`), implicit `PROMETHEUS_URL` only in metrics subgraph (not here).  
-**Known issues:** README says Flask port 8000; actual bind 5000. Onboarding INSERT columns may not match `company_db_schema.sql` (see §8). Subgraph table list uses `business` vs `businesses`.
+**Known issues:** Onboarding INSERT columns may not match `company_db_schema.sql` (see §8). Subgraph table list uses `business` vs `businesses`.
 
 ---
 
@@ -340,7 +340,7 @@ Browser
 **Purpose:** Client-only FAQ bot with keyword matching — **does not call the LangGraph backend**.  
 
 **Other `src/components`, `src/features`:** Homepage sections (Hero, FAQ, testimonials, etc.).  
-**Known issues:** `get-started.tsx` hardcodes backend URL; compose sets `VITE_API_URL=http://localhost:8000` (wrong port vs agent 5000). `@typebot.io/ui` Button import in get-started.  
+**Known issues:** `get-started.tsx` hardcodes backend URL instead of consistently using `VITE_API_URL`. `@typebot.io/ui` Button import in get-started.
 
 ---
 
@@ -427,7 +427,7 @@ Browser
 ---
 
 #### `README.md`
-**Purpose:** Partial setup notes; DB instructions; **Flask port documented as 8000** (incorrect). Wishlist line for benchmarking, Slack, GitHub, dashboard.  
+**Purpose:** Partial setup notes, DB instructions, and contribution guidance. Wishlist line for benchmarking, Slack, GitHub, dashboard.
 
 #### `PS.md`
 **Purpose:** Product vision and problem statement for small business owners.  
@@ -500,8 +500,8 @@ Tables `conversations`, `messages` (optional `intent`) — created in `web/app.p
 | 3 | `api.ts` `sendMessage` calls `fetchJson` on `/api/chat/send` then POST — wrong | `dashboard/src/lib/api.ts` | Critical | Logic error. |
 | 4 | `web/` Flask not in `docker-compose.yml` | `docker-compose.yml` | High | “Real” multi-table dashboard APIs only on :5001 path. |
 | 5 | About page Typebot branding | `landing-page/src/routes/_layout/about.tsx` | Medium | Title/meta and copy. |
-| 6 | README Flask port 8000 vs 5000 | `README.md` | Low | Docs drift. |
-| 7 | `VITE_API_URL=8000` in compose vs backend 5000 | `docker-compose.yml` | Medium | Misleading env. |
+| 6 | Landing-page API URL should be configurable outside Docker | `landing-page/src/routes/get-started.tsx`, `README.md` | Medium | Docker uses `http://backend:5000`; local/browser builds need an explicit public backend URL. |
+| 7 | Missing `.env.example` | Root directory | Medium | Contributors must infer required environment variables from docs and compose. |
 | 8 | LangGraph `AVAILABLE_TABLES` lists `business` not `businesses` | `database_request_graph/subgraph.py`, `utils.py` | High | Wrong SQL hints. |
 | 9 | `logs_request_graph/utils.py` missing `import requests` | Same | High | Runtime error on Loki fetch. |
 | 10 | `metrics_request_graph/utils.py` missing `import time` | Same | High | `NameError` in `fetch_metrics`. |
