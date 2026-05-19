@@ -17,6 +17,7 @@ import HealthScores from "@/components/HealthScores";
 import EmployeeStatistics from "@/components/EmployeeStatistics";
 import RecentTransactions from "@/components/RecentTransactions";
 import ForecastChart from "@/components/ForecastChart";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 
 import { useEffect } from "react";
@@ -39,45 +40,69 @@ export default function DashboardPage() {
           <Topbar onSearch={setSearchQuery} />
           <div className="content-wrapper">
             <WelcomeBanner />
-            <KPICards />
+            <ErrorBoundary label="KPI cards">
+              <KPICards />
+            </ErrorBoundary>
 
             {/* Row 1: Revenue vs Expenses + Transactions by Category */}
             <div className="charts-row pt-4">
-              <RevenueVsExpenses />
-              <TransactionsByCategory />
+              <ErrorBoundary label="Revenue vs expenses">
+                <RevenueVsExpenses />
+              </ErrorBoundary>
+              <ErrorBoundary label="Transactions by category">
+                <TransactionsByCategory />
+              </ErrorBoundary>
             </div>
 
             {/* Row 2: Sales Trend + Alerts by Severity */}
             <div className="charts-row">
-              <SalesTrend />
-              <AlertsBySeverity />
+              <ErrorBoundary label="Sales trend">
+                <SalesTrend />
+              </ErrorBoundary>
+              <ErrorBoundary label="Alerts by severity">
+                <AlertsBySeverity />
+              </ErrorBoundary>
             </div>
 
             {/* Row 2.5: AI Revenue Forecast */}
             <div className="charts-row" style={{ gridTemplateColumns: "1fr" }}>
-              <ForecastChart />
+              <ErrorBoundary label="Revenue forecast">
+                <ForecastChart />
+              </ErrorBoundary>
             </div>
 
 
             {/* Row 3: Financial Overview + Top Products */}
             <div className="charts-row">
-              <RevenueInsights />
-              <TopProducts />
+              <ErrorBoundary label="Revenue insights">
+                <RevenueInsights />
+              </ErrorBoundary>
+              <ErrorBoundary label="Top products">
+                <TopProducts />
+              </ErrorBoundary>
             </div>
 
             {/* Row 4: Health Scores + Employee Statistics */}
             <div className="charts-row">
-              <HealthScores />
-              <EmployeeStatistics />
+              <ErrorBoundary label="Health scores">
+                <HealthScores />
+              </ErrorBoundary>
+              <ErrorBoundary label="Employee statistics">
+                <EmployeeStatistics />
+              </ErrorBoundary>
             </div>
 
             {/* Row 5: Sales Overview (gauge) — full width */}
             <div className="charts-row" style={{ gridTemplateColumns: "1fr" }}>
-              <SalesOverview />
+              <ErrorBoundary label="Sales overview">
+                <SalesOverview />
+              </ErrorBoundary>
             </div>
 
             {/* Row 6: Recent Transactions */}
-            <RecentTransactions search={searchQuery} />
+            <ErrorBoundary label="Recent transactions">
+              <RecentTransactions search={searchQuery} />
+            </ErrorBoundary>
           </div>
         </div>
       </div>
