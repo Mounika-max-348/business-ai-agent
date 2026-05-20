@@ -1,21 +1,23 @@
 name: Auto Bump Version
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened]
+
+permissions:
+  contents: write
 
 jobs:
   bump:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.repository }}
           fetch-depth: 0
 
       - name: Setup Git

@@ -1,20 +1,20 @@
 name: PR Automation
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened]
+
+permissions:
+  issues: write
 
 jobs:
   pr-comment:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Commenting & Labeling PR
         env:
-          GH_TOKEN: ${{ secrets.MOHIT_GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
 
@@ -34,4 +34,4 @@ jobs:
             "
 
           gh pr edit $PR_NUMBER \
-            --add-label "needs-review" \
+            --add-label "needs-review"
