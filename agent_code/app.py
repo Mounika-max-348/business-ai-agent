@@ -234,37 +234,6 @@ def get_current_business_id():
 def home():
     return jsonify({"status": "healthy", "service": "ProfitPilot Backend", "version": "1.0.0"})
 
-@app.route("/api/dashboard/summary-sql", methods=["GET"])
-@token_required
-def api_dashboard_summary():
-    period = request.args.get("period", "this_month")
-    start_date, end_date = get_period_dates(period)
-    bid = get_current_business_id()
-    if not bid: return jsonify({"error": "No business found"}), 404
-    
-    txn = execute_read_query_params("""
-        SELECT 
-            COALESCE(SUM(CASE WHEN type='Revenue' THEN amount END), 0) AS total_revenue,
-            COALESCE(SUM(CASE WHEN type='Expense' THEN amount END), 0) AS total_expenses,
-            COUNT(*) AS total_transactions
-        FROM daily_transactions WHERE business_id = %s AND transaction_date BETWEEN %s AND %s
-    """, (bid, start_date, end_date))
-    
-    alerts = execute_read_query_params("SELECT COUNT(*) AS active_alerts FROM alerts WHERE business_id = %s AND status = 'Active'", (bid,))
-    
-    curr = txn[0] if txn else {}
-    return jsonify({
-        "total_revenue": float(curr.get("total_revenue", 0)),
-        "total_expenses": float(curr.get("total_expenses", 0)),
-        "net_profit": float(curr.get("total_revenue", 0)) - float(curr.get("total_expenses", 0)),
-        "total_transactions": int(curr.get("total_transactions", 0)),
-        "active_alerts": int(alerts[0].get("active_alerts", 0)) if alerts else 0,
-        "revenue_change": 12.5, 
-        "expenses_change": -2.4,
-        "net_profit_change": 15.1,
-        "transactions_change": 4.3
-    })
-
 @app.route("/api/dashboard/forecast", methods=["GET"])
 @token_required
 def api_forecast():
@@ -612,7 +581,7 @@ def get_period_dates(period):
 
 @app.route("/api/dashboard/summary-sql", methods=["GET", "OPTIONS"])
 @token_required
-def api_summary_sql():
+def api_dashboard_summary():
     bid = get_current_business_id()
     period = request.args.get("period", "this_month")
     start_date, end_date = get_period_dates(period)
