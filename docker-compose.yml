@@ -4,15 +4,15 @@ services:
     container_name: postgres_db
     restart: always
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: test_db
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-test_db}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d test_db"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,42 +22,42 @@ services:
     container_name: pgadmin
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: mohitmolela@gmail.com
-      PGADMIN_DEFAULT_PASSWORD: root
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     ports:
       - "5050:80"
 
-  # landing-page:
-  #   build:
-  #     context: ./landing-page
-  #     dockerfile: Dockerfile
-  #   container_name: landing-page
-  #   restart: always
-  #   ports:
-  #     - "5173:5173"
-  #   volumes:
-  #     - ./landing-page:/app
-  #     - /app/node_modules
-  #   environment:
-  #     - VITE_API_URL=http://backend:5000
-  #     - DATABASE_URL=postgresql://admin:root@db:5432/test_db
-  #     - ENCRYPTION_SECRET=12345678901234567890123456789012
-  #     - NEXTAUTH_URL=http://localhost:5173
-  #     - NEXT_PUBLIC_VIEWER_URL=http://localhost:5173
-  #     # - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
-  #   depends_on:
-  #     backend:
-  #       condition: service_healthy
-  #     db:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "wget -qO- http://localhost:5173 >/dev/null 2>&1 || exit 1"]
-  #     interval: 15s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 30s
-  #   stdin_open: true
-  #   tty: true
+  landing-page:
+    build:
+      context: ./landing-page
+      dockerfile: Dockerfile
+    container_name: landing-page
+    restart: always
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./landing-page:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://backend:5000
+      - DATABASE_URL=${DATABASE_URL}
+      - ENCRYPTION_SECRET=12345678901234567890123456789012
+      - NEXTAUTH_URL=http://localhost:5173
+      - NEXT_PUBLIC_VIEWER_URL=http://localhost:5173
+      # - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+    depends_on:
+      backend:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5173 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    stdin_open: true
+    tty: true
 
   backend:
     build:

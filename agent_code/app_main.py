@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import base64
-import bcrypt
 import json
 import os
 import time
 from datetime import datetime, timedelta
+from functools import wraps
 from typing import Any
 
 import requests
@@ -15,14 +15,18 @@ from flask_cors import CORS
 from langchain_core.messages import HumanMessage, SystemMessage
 from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, Counter, Histogram, generate_latest
 
+from api_errors import internal_error_response
 from db_config import execute_read_query_params, get_db_connection
+from auth_passwords import SOCIAL_LOGIN_PASSWORD_HASH
 from llm.base_llm import base_llm
 from logger.logger import logger
 from query_execution import stream_agent_sse_lines
+from auth import AuthError, decode_jwt_identity, require_jwt_secret
 
 load_dotenv()
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = require_jwt_secret(os.getenv("JWT_SECRET"))
 CORS(app)
 
 AGENT_REQUEST_COUNT = Counter(
@@ -47,6 +51,28 @@ WHATSAPP_ACCESS_TOKEN = (os.getenv("WHATSAPP_ACCESS_TOKEN") or "").strip()
 WHATSAPP_PHONE_NUMBER_ID = (os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "").strip()
 TELEGRAM_BOT_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 DEFAULT_BUSINESS_ID = (os.getenv("DEFAULT_BUSINESS_ID") or "").strip()
+
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            identity = decode_jwt_identity(
+                request.headers.get("Authorization"),
+                app.config["SECRET_KEY"],
+            )
+        except AuthError as exc:
+            return jsonify({"message": exc.message}), exc.status_code
+
+        g.user_id = identity["user_id"]
+        g.business_id = identity["business_id"]
+        return f(*args, **kwargs)
+
+    return decorated
+
+
+def get_current_business_id():
+    return getattr(g, "business_id", None)
 
 
 @app.before_request
@@ -446,7 +472,7 @@ def billing_analyze_all():
         return jsonify({"business_id": business_id, "analysis": answer})
     except Exception as exc:
         logger.error("Analyze all failed: %s", exc, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/v1/whatsapp/webhook", methods=["GET"])
@@ -508,7 +534,7 @@ def whatsapp_events():
         return jsonify({"ok": True}), 200
     except Exception as exc:
         logger.error("WhatsApp webhook failed: %s", exc, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/v1/telegram/webhook", methods=["POST"])
@@ -568,7 +594,7 @@ def telegram_webhook():
         return jsonify({"ok": True})
     except Exception as exc:
         logger.error("Telegram webhook failed: %s", exc, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 ASSIGNMENTS_FILE = "assigned_issues.json"
@@ -620,7 +646,7 @@ def get_employees():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/v1/escalate", methods=["POST"])
@@ -655,7 +681,7 @@ def escalate_to_slack():
         delivery.client.chat_postMessage(channel=ch, text="Web Chatbot Escalation", blocks=blocks)
         return jsonify({"status": "ok"}), 200
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/summary", methods=["GET", "OPTIONS"])
@@ -689,7 +715,7 @@ def api_dashboard_summary():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/financial-overview", methods=["GET", "OPTIONS"])
@@ -721,22 +747,25 @@ def api_financial_overview():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/revenue-vs-expense", methods=["GET", "OPTIONS"])
+@token_required
 def api_revenue_vs_expense():
-    cutoff = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y-%m-%d")
+    bid = get_current_business_id()
+    period = request.args.get("period", "this_month")
+    start_date, end_date = get_period_dates(period)
     try:
         rows = execute_read_query_params(
             """
             SELECT category, type, COALESCE(SUM(amount), 0) AS total
             FROM daily_transactions
-            WHERE transaction_date >= %s
+            WHERE business_id = %s AND transaction_date BETWEEN %s AND %s
             GROUP BY category, type
             ORDER BY total DESC
             """,
-            (cutoff,),
+            (bid, start_date, end_date),
         )
         revenue_cats: dict[str, float] = {}
         expense_cats: dict[str, float] = {}
@@ -752,7 +781,7 @@ def api_revenue_vs_expense():
             {"labels": labels, "revenue": [revenue_cats.get(c, 0) for c in labels], "expenses": [expense_cats.get(c, 0) for c in labels]}
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/sales-trend", methods=["GET", "OPTIONS"])
@@ -779,7 +808,7 @@ def api_sales_trend():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/transactions-by-category", methods=["GET", "OPTIONS"])
@@ -798,7 +827,7 @@ def api_transactions_by_category():
         )
         return jsonify({"labels": [r["category"] or "Other" for r in rows], "data": [int(r["cnt"]) for r in rows]})
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/alerts-by-severity", methods=["GET", "OPTIONS"])
@@ -809,7 +838,7 @@ def api_alerts_by_severity():
         )
         return jsonify({"labels": [r["severity"] for r in rows], "data": [int(r["cnt"]) for r in rows]})
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/health-scores", methods=["GET", "OPTIONS"])
@@ -843,7 +872,7 @@ def api_health_scores():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/top-products", methods=["GET", "OPTIONS"])
@@ -869,7 +898,7 @@ def api_top_products():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/employee-stats", methods=["GET", "OPTIONS"])
@@ -886,7 +915,7 @@ def api_employee_stats():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/recent-transactions", methods=["GET", "OPTIONS"])
@@ -916,7 +945,7 @@ def api_recent_transactions():
                 r["transaction_date"] = r["transaction_date"].isoformat()
         return jsonify({"transactions": rows})
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/sales-target", methods=["GET", "OPTIONS"])
@@ -950,7 +979,7 @@ def api_sales_target():
             }
         )
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/categories", methods=["GET", "OPTIONS"])
@@ -959,7 +988,7 @@ def api_categories():
         rows = execute_read_query_params("SELECT DISTINCT category FROM daily_transactions ORDER BY category")
         return jsonify({"categories": [r["category"] for r in rows if r["category"]]})
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
 
 
 @app.route("/api/dashboard/business-info", methods=["GET", "OPTIONS"])
@@ -975,7 +1004,7 @@ def get_business_info():
             return jsonify({"error": "No business found"}), 404
         return jsonify(business)
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return internal_error_response(exc)
     finally:
         conn.close()
 
@@ -1088,11 +1117,11 @@ def api_dashboard_summary():
             COUNT(*) AS total_transactions
         FROM daily_transactions WHERE business_id = %s AND transaction_date BETWEEN %s AND %s
     """, (bid, start_date, end_date))
-    
+
     alerts = execute_read_query_params("SELECT COUNT(*) AS active_alerts FROM alerts WHERE business_id = %s AND status = 'Active'", (bid,))
-    
+
     curr = txn[0] if txn else {}
-    
+
     # Parse dates to compute prev period
     dt_start = datetime.strptime(start_date, "%Y-%m-%d").date()
     if period == "this_month":
@@ -1104,28 +1133,28 @@ def api_dashboard_summary():
     else:
         p_start = dt_start - timedelta(days=30)
         p_end = dt_start - timedelta(days=1)
-        
+
     p_start_str = p_start.strftime("%Y-%m-%d")
     p_end_str = p_end.strftime("%Y-%m-%d")
-    
+
     prev_txn = execute_read_query_params("""
-        SELECT 
+        SELECT
             COALESCE(SUM(CASE WHEN type='Revenue' THEN amount END), 0) AS total_revenue,
             COALESCE(SUM(CASE WHEN type='Expense' THEN amount END), 0) AS total_expenses
         FROM daily_transactions WHERE business_id = %s AND transaction_date BETWEEN %s AND %s
     """, (bid, p_start_str, p_end_str))
-    
+
     prev = prev_txn[0] if prev_txn else {}
-    
+
     def calc_change(curr_val, prev_val):
         if not prev_val: return 100.0 if curr_val else 0.0
         return round(((curr_val - prev_val) / prev_val) * 100.0, 1)
-        
+
     rev = float(curr.get("total_revenue", 0))
     exp = float(curr.get("total_expenses", 0))
     prev_rev = float(prev.get("total_revenue", 0))
     prev_exp = float(prev.get("total_expenses", 0))
-    
+
     return jsonify({
         "total_revenue": rev,
         "total_expenses": exp,
@@ -1165,7 +1194,7 @@ def api_forecast():
         
         return jsonify({"historical": hist, "forecast": forecast, "insight": "Revenue is trending upwards based on last 60 days."})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return internal_error_response(e)
 
 @app.route("/api/v1/onboarding", methods=["POST"])
 def onboarding():
@@ -1180,12 +1209,8 @@ def onboarding():
         bid = str(uuid.uuid4())
         cur.execute("INSERT INTO businesses (business_id, business_name, industry_type, owner_name) VALUES (%s, %s, %s, %s)", 
                    (bid, business_name, data.get("business_category"), data.get("full_name")))
-        oauth_password_hash = bcrypt.hashpw(
-            uuid.uuid4().hex.encode("utf-8"),
-            bcrypt.gensalt(),
-        ).decode("utf-8")
         cur.execute("INSERT INTO users (business_id, name, email, password_hash) VALUES (%s, %s, %s, %s)",
-                   (bid, data.get("full_name"), email, oauth_password_hash))
+                   (bid, data.get("full_name"), email, SOCIAL_LOGIN_PASSWORD_HASH))
         conn.commit()
         return jsonify({"success": True, "business_id": bid}), 201
     finally:
