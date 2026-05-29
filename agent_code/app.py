@@ -41,6 +41,7 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 from query_execution import stream_agent_sse_lines
 from auth import AuthError, decode_jwt_identity, require_jwt_secret
 from api_errors import internal_error_response
+from auth_passwords import SOCIAL_LOGIN_PASSWORD_HASH, verify_password
 
 load_dotenv()
 
@@ -161,7 +162,7 @@ def auth_login():
         cur.execute("SELECT user_id, business_id, name, password_hash FROM users WHERE email = %s", (email,))
         user = cur.fetchone()
 
-        if not user or not bcrypt.checkpw(password.encode("utf-8"), user["password_hash"].encode("utf-8")):
+        if not user or not verify_password(password, user.get("password_hash")):
             return jsonify({"message": "Invalid email or password"}), 401
 
         token = jwt.encode({
@@ -406,12 +407,8 @@ def onboarding():
         bid = str(uuid.uuid4())
         cur.execute("INSERT INTO businesses (business_id, business_name, industry_type, owner_name) VALUES (%s, %s, %s, %s)", 
                    (bid, business_name, data.get("business_category"), data.get("full_name")))
-        oauth_password_hash = bcrypt.hashpw(
-            uuid.uuid4().hex.encode("utf-8"),
-            bcrypt.gensalt(),
-        ).decode("utf-8")
         cur.execute("INSERT INTO users (business_id, name, email, password_hash) VALUES (%s, %s, %s, %s)",
-                   (bid, data.get("full_name"), email, oauth_password_hash))
+                   (bid, data.get("full_name"), email, SOCIAL_LOGIN_PASSWORD_HASH))
         conn.commit()
         return jsonify({"success": True, "business_id": bid}), 201
     finally:
