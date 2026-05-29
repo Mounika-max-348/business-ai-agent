@@ -556,10 +556,11 @@ def import_notebook():
 def confirm_notebook():
     data = request.get_json(silent=True)
 
-if not isinstance(data, dict):
-    return jsonify({
-        "error": "Invalid or missing JSON body"
-    }), 400
+    if not isinstance(data, dict):
+        return jsonify({
+            "error": "Invalid or missing JSON body"
+        }), 400
+
     bid = get_current_business_id()
     transactions = data.get("transactions", [])
     file_hash = data.get("hash")
