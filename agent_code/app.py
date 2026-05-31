@@ -827,6 +827,34 @@ def api_dashboard_summary():
 @app.route("/api/dashboard/alerts-list", methods=["GET"])
 @token_required
 def api_alerts_list():
+    """
+    Retrieve recent alerts for the authenticated business.
+
+    This endpoint returns up to 50 alerts associated with the
+    authenticated business, ordered by creation time in descending
+    order. Alert timestamps are formatted before being returned
+    in the response.
+
+    Returns:
+        flask.Response:
+            A JSON response containing:
+            - alerts: List of alert objects with:
+                - alert_id
+                - message
+                - severity
+                - status
+                - created_at
+
+    Side Effects:
+        - Executes a database query against the alerts table.
+        - Formats alert timestamps for API responses.
+        - Uses the authenticated user's business ID to filter results.
+
+    Raises:
+        Exceptions raised during database access or response
+        processing are handled and returned via
+        internal_error_response().
+    """
     bid = get_current_business_id()
     try:
         rows = execute_read_query_params("SELECT alert_id, message, severity, status, created_at FROM alerts WHERE business_id = %s ORDER BY created_at DESC LIMIT 50", (bid,))
