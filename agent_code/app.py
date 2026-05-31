@@ -614,12 +614,43 @@ def query_agent():
 @limiter.limit(CHAT_RATE_LIMIT)
 @token_required
 def api_chat_send():
+    """
+    Stream an AI chat response for an authenticated user.
+
+    This endpoint accepts a user message and an optional conversation
+    identifier, then streams the generated AI response using
+    Server-Sent Events (SSE).
+
+    Request JSON:
+        {
+            "message": str,
+            "conversation_id": str | None
+        }
+
+    Returns:
+        flask.Response:
+            An SSE (`text/event-stream`) response containing the
+            generated chat output tokens.
+
+    Side Effects:
+        - Creates a new conversation ID when one is not provided.
+        - Uses the authenticated user's business ID as context.
+        - Invokes the AI agent response generation pipeline.
+
+    Raises:
+        Exceptions from the streaming pipeline may be propagated
+        through the SSE response stream.
+    """
     data = request.json
     msg = data.get("message")
     conv_id = data.get("conversation_id") or str(uuid.uuid4())
     bid = get_current_business_id()
-    return Response(stream_with_context(stream_agent_sse_lines(msg, conv_id, bid)), mimetype="text/event-stream")
-
+    return Response(
+        stream_with_context(
+            stream_agent_sse_lines(msg, conv_id, bid)
+        ),
+        mimetype="text/event-stream"
+    )
 @app.route("/api/dashboard/financial-overview", methods=["GET", "OPTIONS"])
 @token_required
 def api_financial_overview():
