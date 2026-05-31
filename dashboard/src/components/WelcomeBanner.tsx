@@ -61,7 +61,7 @@ export default function WelcomeBanner() {
             className="filter-dropdown"
             style={{ appearance: "none", paddingRight: "12px" }}
             value={period}
-            onChange={(e: any) => setPeriod(e.target.value as DashboardPeriod)}
+            onChange={(e) => setPeriod(e.target.value as DashboardPeriod)}
             aria-label="Reporting period"
           >
             <option value="this_month">This Month</option>

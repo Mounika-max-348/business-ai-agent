@@ -1,8 +1,107 @@
 from __future__ import annotations
 
+import importlib.util
+import os
+import sys
+import types
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import jwt
+import pytest
+
+
+AGENT_CODE_DIR = Path(__file__).resolve().parents[1] / "agent_code"
+if str(AGENT_CODE_DIR) not in sys.path:
+    sys.path.insert(0, str(AGENT_CODE_DIR))
+
+
+class _NoopWorkflow:
+    def stream(self, *args, **kwargs):
+        return iter(())
+
+
+def _install_chat_history_import_stubs() -> None:
+    if importlib.util.find_spec("numpy") is None:
+        numpy = types.ModuleType("numpy")
+        numpy.__chat_history_stub__ = True
+        sys.modules["numpy"] = numpy
+
+    if importlib.util.find_spec("langchain_openai") is None:
+        langchain_openai = types.ModuleType("langchain_openai")
+
+        class ChatOpenAI:
+            def __init__(self, *args, **kwargs):
+                pass
+
+        langchain_openai.ChatOpenAI = ChatOpenAI
+        sys.modules["langchain_openai"] = langchain_openai
+
+    if importlib.util.find_spec("langgraph") is None:
+        langgraph = types.ModuleType("langgraph")
+        langgraph_types = types.ModuleType("langgraph.types")
+
+        class Command(dict):
+            pass
+
+        langgraph_types.Command = Command
+        sys.modules["langgraph"] = langgraph
+        sys.modules["langgraph.types"] = langgraph_types
+
+    workflow_modules = {
+        "intents.general_information_graph.subgraph": "general_information_graph_workflow",
+        "intents.database_request_graph.subgraph": "database_request_graph_workflow",
+        "intents.logs_request_graph.subgraph": "logs_request_graph_workflow",
+        "intents.metrics_request_graph.subgraph": "metrics_request_graph_workflow",
+    }
+    for module_name, workflow_name in workflow_modules.items():
+        module = types.ModuleType(module_name)
+        setattr(module, workflow_name, _NoopWorkflow())
+        sys.modules[module_name] = module
+
+
+def _remove_import_stub(module_name: str) -> None:
+    module = sys.modules.get(module_name)
+    if getattr(module, "__chat_history_stub__", False):
+        sys.modules.pop(module_name, None)
+
+
+@pytest.fixture(scope="session")
+def app_module(tmp_path_factory):
+    os.environ.setdefault("GROQ_API_KEY", "test-key")
+    os.environ.setdefault("OPENROUTER_API_KEY", "test-openrouter-key")
+    os.environ.setdefault("JWT_SECRET", "test-secret")
+    os.environ["USE_IN_MEMORY_CHECKPOINTER"] = "true"
+    os.environ["CHAT_DB_PATH"] = str(tmp_path_factory.mktemp("chat") / "chat_history.sqlite")
+    (AGENT_CODE_DIR / "logs").mkdir(exist_ok=True)
+    _install_chat_history_import_stubs()
+    module_path = AGENT_CODE_DIR / "app.py"
+    spec = importlib.util.spec_from_file_location("profitpilot_agent_app", module_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _remove_import_stub("numpy")
+    module.app.config.update(TESTING=True, RATELIMIT_ENABLED=False, SECRET_KEY="test-secret")
+    return module
+
+
+@pytest.fixture()
+def client(app_module):
+    return app_module.app.test_client()
+
+
+@pytest.fixture()
+def auth_headers(app_module):
+    token = jwt.encode(
+        {
+            "user_id": "user-1",
+            "business_id": "business-1",
+            "exp": datetime.utcnow() + timedelta(hours=1),
+        },
+        app_module.app.config["SECRET_KEY"],
+        algorithm="HS256",
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _make_auth_headers(app_module, *, user_id: str, business_id: str) -> dict[str, str]:
