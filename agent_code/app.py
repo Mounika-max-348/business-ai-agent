@@ -540,6 +540,7 @@ def import_notebook():
                     "type": r[1],
                     "category": r[2],
                     "amount": r[3],
+                    "description": r[4],
                     "hash": file_hash
                 } for r in rows
             ],
