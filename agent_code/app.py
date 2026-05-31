@@ -654,6 +654,30 @@ def api_chat_send():
 @app.route("/api/dashboard/financial-overview", methods=["GET", "OPTIONS"])
 @token_required
 def api_financial_overview():
+    """
+    Retrieve financial overview metrics for the authenticated business.
+
+    This endpoint aggregates financial data from the financial_records
+    table and returns up to the 12 most recent reporting periods,
+    including revenue, expenses, net profit, and cash balance.
+
+    Returns:
+        flask.Response:
+            A JSON response containing:
+            - labels: List of period labels in YYYY-MM format.
+            - revenue: Revenue totals for each period.
+            - expenses: Expense totals for each period.
+            - net_profit: Net profit totals for each period.
+            - cash_balance: Cash balance totals for each period.
+
+    Side Effects:
+        - Executes database queries against the financial_records table.
+        - Uses the authenticated user's business ID to filter data.
+
+    Raises:
+        Exceptions raised during database access or data processing
+        are handled and returned via internal_error_response().
+    """
     bid = get_current_business_id()
     try:
         rows = execute_read_query_params("""
