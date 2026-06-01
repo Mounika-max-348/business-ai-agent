@@ -946,6 +946,33 @@ def api_health_scores():
 @app.route("/api/dashboard/top-products", methods=["GET", "OPTIONS"])
 @token_required
 def api_top_products():
+    """
+    Retrieve top products and profitability metrics for the authenticated business.
+
+    This endpoint returns up to 10 products with the highest stock quantities
+    for the authenticated business. It includes stock levels, profit margins,
+    and margin percentages for each product to support dashboard reporting
+    and inventory analysis.
+
+    Returns:
+        flask.Response:
+            A JSON response containing:
+            - labels: List of product names.
+            - stock: List of stock quantities for each product.
+            - margin: List of profit margin percentages.
+            - margin_amount: List of profit margin amounts.
+            - margin_pct: List of profit margin percentages.
+
+    Side Effects:
+        - Executes a database query against the products table.
+        - Calculates margin amounts and margin percentages.
+        - Uses the authenticated user's business ID to filter results.
+
+    Raises:
+        Exceptions raised during database access or response
+        processing are handled and returned via
+        internal_error_response().
+    """
     bid = get_current_business_id()
     try:
         rows = execute_read_query_params("SELECT product_name, stock_quantity, selling_price, cost_price FROM products WHERE business_id = %s ORDER BY stock_quantity DESC LIMIT 10", (bid,))
