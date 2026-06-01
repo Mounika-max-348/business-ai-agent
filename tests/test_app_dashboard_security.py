@@ -147,3 +147,33 @@ def test_health_scores_scoped_to_token_business(client, recorded_queries):
     sql, params = recorded_queries[-1]
     assert "business_id = %s" in sql
     assert params[0] == BUSINESS_A
+
+
+# ---------------------------------------------------------------------------
+# /api/dashboard/sales-trend  (issue #220)
+# ---------------------------------------------------------------------------
+
+def test_sales_trend_requires_token(client, recorded_queries):
+    resp = client.get("/api/dashboard/sales-trend?period=this_month")
+    assert resp.status_code == 401
+    assert recorded_queries == []
+
+
+def test_sales_trend_rejects_email_fallback(client, recorded_queries):
+    resp = client.get(
+        "/api/dashboard/sales-trend?period=this_month&email=attacker@example.com"
+    )
+    assert resp.status_code == 401
+    assert recorded_queries == []
+
+
+def test_sales_trend_scoped_to_token_business(client, recorded_queries):
+    resp = client.get(
+        "/api/dashboard/sales-trend?period=this_month",
+        headers=_auth(BUSINESS_A),
+    )
+    assert resp.status_code == 200
+    assert recorded_queries, "expected a DB query"
+    sql, params = recorded_queries[-1]
+    assert "business_id = %s" in sql
+    assert params[0] == BUSINESS_A
