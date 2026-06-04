@@ -942,13 +942,17 @@ def query_agent():
 @limiter.limit(CHAT_RATE_LIMIT)
 @token_required
 def api_chat_send():
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Invalid or missing JSON payload"}), 400
-    msg = data.get("message")
-    conv_id = data.get("conversation_id") or str(uuid.uuid4())
-    bid = get_current_business_id()
-    return Response(stream_with_context(stream_agent_sse_lines(msg, conv_id, bid)), mimetype="text/event-stream")
+    try:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Invalid or missing JSON payload"}), 400
+        msg = data.get("message")
+        conv_id = data.get("conversation_id") or str(uuid.uuid4())
+        bid = get_current_business_id()
+        return Response(stream_with_context(stream_agent_sse_lines(msg, conv_id, bid)), mimetype="text/event-stream")
+    except Exception as exc:
+        logger.error("api_chat_send failed: %s", exc, exc_info=True)
+        return internal_error_response(exc)
 
 @app.route("/api/chat/conversations", methods=["GET"])
 @limiter.limit(CHAT_RATE_LIMIT)
@@ -1003,12 +1007,12 @@ def api_chat_conversation(conversation_id: str):
             db.commit()
             return ("", 204)
 
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Invalid or missing JSON payload"}), 400
-    raw_messages = data.get("messages") or []
-    if not isinstance(raw_messages, list):
-        return jsonify({"error": "messages must be an array"}), 400
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Invalid or missing JSON payload"}), 400
+        raw_messages = data.get("messages") or []
+        if not isinstance(raw_messages, list):
+            return jsonify({"error": "messages must be an array"}), 400
 
         try:
             messages = [_normalize_chat_message(message) for message in raw_messages]
@@ -1049,15 +1053,11 @@ def api_chat_conversation(conversation_id: str):
 @limiter.limit(CHAT_RATE_LIMIT)
 @token_required
 def api_chat_conversation_messages(conversation_id: str):
-    business_id, user_id = _chat_owner_filter()
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Invalid or missing JSON payload"}), 400
-    db = _get_chat_db()
-
     try:
         business_id, user_id = _chat_owner_filter()
-        data = request.get_json(silent=True) or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Invalid or missing JSON payload"}), 400
         db = _get_chat_db()
 
         try:
