@@ -22,6 +22,9 @@ import numpy as np
 from datetime import datetime, timedelta, date, timezone
 from dateutil.relativedelta import relativedelta
 from dotenv import load_dotenv
+import html
+import re
+from werkzeug.exceptions import RequestEntityTooLarge
 
 # Database & AI Imports
 from db_config import get_db_connection, execute_read_query_params
@@ -45,9 +48,21 @@ from swagger_docs import register_swagger_docs
 load_dotenv()
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB
 app.config["SECRET_KEY"] = require_jwt_secret(os.getenv("JWT_SECRET"))
 CORS(app)
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_payload_too_large(e):
+    return jsonify({"error": "Payload too large. Maximum size is 1MB."}), 413
+
+def sanitize_input(text):
+    if not isinstance(text, str):
+        return text
+    # Strip malicious control characters
+    text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+    # Escape HTML
+    return html.escape(text)
 
 DEFAULT_RATE_LIMITS = [
     limit.strip()
@@ -1089,6 +1104,8 @@ def confirm_notebook():
 def query_agent():
     try:
         input_query = request.args.get("input-query", "")
+        if input_query:
+            input_query = sanitize_input(input_query)
         thread_id = request.args.get("thread-id", "")
         business_id = request.args.get("business-id", "")
 
