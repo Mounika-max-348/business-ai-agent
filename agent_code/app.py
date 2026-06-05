@@ -1354,7 +1354,7 @@ def api_top_products():
     try:
         rows = execute_read_query_params(
             "SELECT product_name, stock_quantity, selling_price, cost_price, "
-            "(selling_price - cost_price) * stock_quantity AS business_value "
+            "(COALESCE(selling_price, 0) - COALESCE(cost_price, 0)) * COALESCE(stock_quantity, 0) AS business_value "
             "FROM products WHERE business_id = %s "
             "ORDER BY business_value DESC LIMIT 10",
             (bid,)
