@@ -161,8 +161,6 @@ def auth_login():
     finally:
         conn.close()
 
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
-
 # --- Configurations ---
 WHATSAPP_VERIFY_TOKEN = (os.getenv("WHATSAPP_VERIFY_TOKEN") or "").strip()
 WHATSAPP_ACCESS_TOKEN = (os.getenv("WHATSAPP_ACCESS_TOKEN") or "").strip()
@@ -907,7 +905,7 @@ def api_chat_send():
     msg = data.get("message")
     conv_id = data.get("conversation_id") or str(uuid.uuid4())
     bid = get_current_business_id()
-    return Response(stream_with_context(stream_agent_sse_lines(msg, conv_id, bid)), mimetype="text/event-stream")
+    return _sse_stream_response(stream_agent_sse_lines(msg, conv_id, bid))
 
 @app.route("/api/chat/conversations", methods=["GET"])
 @limiter.limit(CHAT_RATE_LIMIT)
