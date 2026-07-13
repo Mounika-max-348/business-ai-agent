@@ -16,11 +16,9 @@ from intents.database_request_graph.subgraph import database_request_graph_workf
 from intents.logs_request_graph.subgraph import logs_request_graph_workflow
 from intents.metrics_request_graph.subgraph import metrics_request_graph_workflow
 
-from api_errors import SAFE_INTERNAL_ERROR_MESSAGE
 from logger.logger import logger
 from logger.agent_debug import utc_iso
 from utils.node_timeout import run_with_timeout, MAX_NODE_TIMEOUT_SECONDS
-from api_errors import SAFE_INTERNAL_ERROR_MESSAGE
 
 
 def _build_business_graph_initial_state(
@@ -199,13 +197,8 @@ def _stream_graph(workflow, initial_state, config, intent_dict, final_node_names
         yield f"data: {json.dumps({'type': 'final', 'intent_str': intent_str})}\n\n"
 
     except Exception as exc:
-<<<<<<< HEAD
         logger.error(f"Error during stream: {exc}", exc_info=True)
         yield f"data: {json.dumps({'type': 'error', 'error': SAFE_INTERNAL_ERROR_MESSAGE, 'intent_str': intent_str})}\n\n"
-=======
-    logger.error(f"Error during stream: {exc}", exc_info=True)
-    yield f"data: {json.dumps({'type': 'error','error': 'An internal server error occurred. Please try again later.', 'intent_str': intent_str })}\n\n"
->>>>>>> fix: avoid exposing raw exception messages in SSE responses
 
 
 def _chain_thread_config(base_thread_id: str, step_index: int) -> dict:
@@ -464,21 +457,12 @@ def stream_agent_sse_lines(
                         exc,
                         exc_info=True,
                     )
-<<<<<<< HEAD
-                    yield f"data: {json.dumps({'type': 'error', 'error': SAFE_INTERNAL_ERROR_MESSAGE, 'intent_str': intent_name})}\n\n"
-=======
-                    yield f"data: {json.dumps({'type': 'error','error': 'An internal server error occurred. Please try again later.', 'intent_str': intent_name})}\n\n"
->>>>>>> fix: avoid exposing raw exception messages in SSE responses
+                    yield f"data: {json.dumps({'type': 'error', 'error': str(exc), 'intent_str': intent_name})}\n\n"
                     return
 
                 except Exception as exc:
                     logger.error("Chained invoke failed at %s: %s", intent_name, exc, exc_info=True)
-<<<<<<< HEAD
-                    yield f"data: {json.dumps({'type': 'error', 'error': SAFE_INTERNAL_ERROR_MESSAGE, 'intent_str': intent_name})}\n\n"
-=======
-                    yield f"data: {json.dumps({'type': 'error','error': 'An internal server error occurred. Please try again later.', 'intent_str': intent_name})}\n\n"
-
->>>>>>> fix: avoid exposing raw exception messages in SSE responses
+                    yield f"data: {json.dumps({'type': 'error', 'error': str(exc), 'intent_str': intent_name})}\n\n"
                     return
                 artifact = _artifact_for_chain(result, intent_name)
                 prior = (prior + artifact).strip()
@@ -495,10 +479,6 @@ def stream_agent_sse_lines(
                     )
                 except Exception as exc:
                     logger.error("Chained stream failed at %s: %s", intent_name, exc, exc_info=True)
-<<<<<<< HEAD
-                    yield f"data: {json.dumps({'type': 'error', 'error': SAFE_INTERNAL_ERROR_MESSAGE, 'intent_str': intent_name})}\n\n"
-=======
-                    yield f"data: {json.dumps({'type': 'error','error': 'An internal server error occurred. Please try again later.', 'intent_str': intent_name})}\n\n"
->>>>>>> fix: avoid exposing raw exception messages in SSE responses
+                    yield f"data: {json.dumps({'type': 'error', 'error': str(exc), 'intent_str': intent_name})}\n\n"
 
     yield from generate_chained()
